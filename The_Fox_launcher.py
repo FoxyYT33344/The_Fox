@@ -33,8 +33,18 @@ def get_online_version(url):
             data = {}
             exec(r.read().decode(), data)
             return data.get("VERSION", None)
-    except:
+    except Exception as e:
+        print("Fehler beim Abrufen der Version:", e)
         return None
+
+# ---------------- Versionsvergleich ----------------
+def parse_version(v):
+    """Wandelt '1.0.8' in eine Liste von Zahlen [1,0,8]"""
+    return [int(x) for x in v.split(".")]
+
+def is_version_higher(v1, v2):
+    """Prüft, ob v1 > v2 numerisch"""
+    return parse_version(v1) > parse_version(v2)
 
 # ---------------- Spiel starten ----------------
 def start_game():
@@ -60,7 +70,7 @@ def quit_launcher():
     if messagebox.askyesno("Launcher beenden", "Wollen Sie den Launcher wirklich beenden?"):
         root.destroy()
 
-# ---------------- Versionscheck ----------------
+# ---------------- Update-Check ----------------
 def check_updates():
     online_game = get_online_version(GAME_VERSION_URL)
     online_launcher = get_online_version(LAUNCHER_VERSION_URL)
@@ -70,12 +80,11 @@ def check_updates():
     msg = ""
     restart_needed = False
 
-    # Prüfen ob online Version höher ist
-    if online_game and online_game > local_game:
+    if online_game and is_version_higher(online_game, local_game):
         msg += f"Neue Spiel-Version verfügbar: {online_game}\n"
         restart_needed = True
 
-    if online_launcher and online_launcher > local_launcher:
+    if online_launcher and is_version_higher(online_launcher, local_launcher):
         msg += f"Neue Launcher-Version verfügbar: {online_launcher}\n"
         restart_needed = True
 
@@ -87,7 +96,7 @@ def check_updates():
 # ---------------- GUI ----------------
 root = tk.Tk()
 root.title("🦊 The Fox Launcher")
-root.geometry("450x300")
+root.geometry("450x350")
 root.resizable(False, False)
 
 title = tk.Label(root, text="🦊 The Fox Launcher", font=("Arial", 16, "bold"))
