@@ -8,27 +8,28 @@ from tkinter import messagebox
 # ---------------- Pfade ----------------
 FOLDER = os.path.dirname(__file__)
 GAME_FILE = os.path.join(FOLDER, "The_Fox.py")
-LOCAL_VERSION_FILE = os.path.join(FOLDER, "version.py")
+LOCAL_LAUNCHER_VERSION = os.path.join(FOLDER, "version.launcher.py")
+LOCAL_GAME_VERSION = os.path.join(FOLDER, "game.version.py")
 
-# ---------------- GitHub-Links ----------------
-GAME_VERSION_URL = "https://raw.githubusercontent.com/FoxyYT33344/The_Fox/main/version.py"
-LAUNCHER_RAW_URL = "https://raw.githubusercontent.com/FoxyYT33344/The_Fox/main/The_Fox_launcher.py"
+# ---------------- GitHub-Links (Raw) ----------------
+GAME_VERSION_URL = "https://raw.githubusercontent.com/FoxyYT33344/The_Fox/main/game.version.py"
+LAUNCHER_VERSION_URL = "https://raw.githubusercontent.com/FoxyYT33344/The_Fox/main/version.launcher.py"
 
 # ---------------- Spiel-Prozess ----------------
 game_process = None
 
-# ---------------- Versionen laden ----------------
-def get_local_version():
-    if not os.path.exists(LOCAL_VERSION_FILE):
+# ---------------- Versions-Helper ----------------
+def get_local_version(file_path):
+    if not os.path.exists(file_path):
         return "0.0.0"
     data = {}
-    with open(LOCAL_VERSION_FILE) as f:
+    with open(file_path) as f:
         exec(f.read(), data)
     return data.get("VERSION", "0.0.0")
 
 def get_online_version(url):
     try:
-        with urllib.request.urlopen(url, timeout=3) as r:
+        with urllib.request.urlopen(url, timeout=5) as r:
             data = {}
             exec(r.read().decode(), data)
             return data.get("VERSION", None)
@@ -41,72 +42,52 @@ def start_game():
     if not os.path.exists(GAME_FILE):
         messagebox.showerror("Fehler", "Spiel ist nicht installiert.")
         return
-
     game_process = subprocess.Popen([sys.executable, GAME_FILE])
     status_label.config(text="Spiel gestartet! Launcher läuft weiter ✅")
 
 # ---------------- Spiel zwangsweise beenden ----------------
 def force_quit_game():
     global game_process
-    if game_process is None:
-        messagebox.showwarning("Info", "Kein Spiel läuft gerade.")
-        return
-    try:
+    if game_process:
         game_process.terminate()
-        status_label.config(text="Spiel zwangsweise beendet ❌")
         game_process = None
-    except Exception as e:
-        messagebox.showerror("Fehler", f"Konnte Spiel nicht beenden: {e}")
+        status_label.config(text="Spiel zwangsweise beendet ❌")
+    else:
+        messagebox.showinfo("Info", "Kein Spiel läuft gerade.")
 
-# ---------------- Update für Spiel ----------------
-def update_game():
-    online_version = get_online_version(GAME_VERSION_URL)
-    local_version = get_local_version()
-    if online_version is None:
-        messagebox.showerror("Fehler", "Konnte Online-Version nicht abrufen.")
-        return
-    if online_version == local_version:
-        messagebox.showinfo("Info", "Spiel ist auf dem neuesten Stand ✅")
-        return
+# ---------------- Launcher beenden ----------------
+def quit_launcher():
+    if messagebox.askyesno("Launcher beenden", "Wollen Sie den Launcher wirklich beenden?"):
+        root.destroy()
 
-    # Update bestätigen
-    if not messagebox.askyesno("Update verfügbar", f"Neue Version {online_version} verfügbar. Update jetzt?"):
-        return
+# ---------------- Versionscheck ----------------
+def check_updates():
+    online_game = get_online_version(GAME_VERSION_URL)
+    online_launcher = get_online_version(LAUNCHER_VERSION_URL)
+    local_game = get_local_version(LOCAL_GAME_VERSION)
+    local_launcher = get_local_version(LOCAL_LAUNCHER_VERSION)
 
-    try:
-        urllib.request.urlretrieve(
-            "https://raw.githubusercontent.com/FoxyYT33344/The_Fox/main/The_Fox.py",
-            GAME_FILE
-        )
-        urllib.request.urlretrieve(GAME_VERSION_URL, LOCAL_VERSION_FILE)
-        messagebox.showinfo("Update", "Spiel erfolgreich aktualisiert! ✅")
-    except Exception as e:
-        messagebox.showerror("Fehler", f"Update fehlgeschlagen: {e}")
+    msg = ""
+    restart_needed = False
 
-# ---------------- Update für Launcher ----------------
-def update_launcher():
-    online_version = get_online_version(GAME_VERSION_URL)
-    local_version = get_local_version()
-    if online_version is None:
-        messagebox.showerror("Fehler", "Konnte Online-Version nicht abrufen.")
-        return
-    if online_version == local_version:
-        messagebox.showinfo("Info", "Launcher ist auf dem neuesten Stand ✅")
-        return
+    # Prüfen ob online Version höher ist
+    if online_game and online_game > local_game:
+        msg += f"Neue Spiel-Version verfügbar: {online_game}\n"
+        restart_needed = True
 
-    if not messagebox.askyesno("Launcher Update", f"Neue Version verfügbar. Update Launcher jetzt?"):
-        return
+    if online_launcher and online_launcher > local_launcher:
+        msg += f"Neue Launcher-Version verfügbar: {online_launcher}\n"
+        restart_needed = True
 
-    try:
-        urllib.request.urlretrieve(LAUNCHER_RAW_URL, os.path.join(FOLDER, "The_Fox_launcher.py"))
-        messagebox.showinfo("Update", "Launcher erfolgreich aktualisiert! Bitte neu starten ✅")
-    except Exception as e:
-        messagebox.showerror("Fehler", f"Launcher Update fehlgeschlagen: {e}")
+    if restart_needed:
+        messagebox.showinfo("Update verfügbar", msg + "\nBitte Launcher neu starten!")
+    else:
+        messagebox.showinfo("Up-to-date", "Alles ist auf dem neuesten Stand ✅")
 
 # ---------------- GUI ----------------
 root = tk.Tk()
 root.title("🦊 The Fox Launcher")
-root.geometry("450x250")
+root.geometry("450x300")
 root.resizable(False, False)
 
 title = tk.Label(root, text="🦊 The Fox Launcher", font=("Arial", 16, "bold"))
@@ -121,10 +102,10 @@ play_btn.pack(pady=5)
 force_quit_btn = tk.Button(root, text="⛔ Spiel zwangsweise beenden", width=35, command=force_quit_game)
 force_quit_btn.pack(pady=5)
 
-update_game_btn = tk.Button(root, text="⬆ Spiel aktualisieren", width=35, command=update_game)
-update_game_btn.pack(pady=5)
+check_update_btn = tk.Button(root, text="⬆ Updates prüfen", width=35, command=check_updates)
+check_update_btn.pack(pady=5)
 
-update_launcher_btn = tk.Button(root, text="⬆ Launcher aktualisieren", width=35, command=update_launcher)
-update_launcher_btn.pack(pady=5)
+quit_launcher_btn = tk.Button(root, text="❌ Launcher beenden", width=35, command=quit_launcher)
+quit_launcher_btn.pack(pady=5)
 
 root.mainloop()
