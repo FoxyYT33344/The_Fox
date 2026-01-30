@@ -4,180 +4,127 @@ import subprocess
 import urllib.request
 import tkinter as tk
 from tkinter import messagebox
-import threading
-import time
 
-# ------------------ Ordner & Dateien ------------------
+# ---------------- Pfade ----------------
 FOLDER = os.path.dirname(__file__)
 GAME_FILE = os.path.join(FOLDER, "The_Fox.py")
-LOCAL_VERSION_FILE = os.path.join(FOLDER, "local_version.py")
+LOCAL_VERSION_FILE = os.path.join(FOLDER, "version.py")
 
-VERSION_URL = "https://raw.githubusercontent.com/DEINNAME/The_Fox_Updates/main/version.py"
-GAME_URL = "https://raw.githubusercontent.com/DEINNAME/The_Fox_Updates/main/The_Fox.py"
+# ---------------- GitHub-Links ----------------
+GAME_VERSION_URL = "https://raw.githubusercontent.com/FoxyYT33344/The_Fox/main/version.py"
+LAUNCHER_RAW_URL = "https://raw.githubusercontent.com/FoxyYT33344/The_Fox/main/The_Fox_launcher.py"
 
-# ------------------ Globale Variablen ------------------
+# ---------------- Spiel-Prozess ----------------
 game_process = None
-checker_thread = None
 
-# ------------------ Versions-Funktionen ------------------
+# ---------------- Versionen laden ----------------
 def get_local_version():
     if not os.path.exists(LOCAL_VERSION_FILE):
         return "0.0.0"
     data = {}
-    with open(LOCAL_VERSION_FILE, "r") as f:
+    with open(LOCAL_VERSION_FILE) as f:
         exec(f.read(), data)
     return data.get("VERSION", "0.0.0")
 
-def get_online_version():
+def get_online_version(url):
     try:
-        with urllib.request.urlopen(VERSION_URL, timeout=3) as r:
+        with urllib.request.urlopen(url, timeout=3) as r:
             data = {}
             exec(r.read().decode(), data)
-            return data.get("VERSION")
+            return data.get("VERSION", None)
     except:
         return None
 
-def save_local_version(v):
-    with open(LOCAL_VERSION_FILE, "w") as f:
-        f.write(f'VERSION = "{v}"')
-
-def download_game():
-    urllib.request.urlretrieve(GAME_URL, GAME_FILE)
-
-# ------------------ Spiel starten ------------------
+# ---------------- Spiel starten ----------------
 def start_game():
-    global game_process, checker_thread
+    global game_process
     if not os.path.exists(GAME_FILE):
         messagebox.showerror("Fehler", "Spiel ist nicht installiert.")
         return
 
-    if sys.platform == "win32":
-        game_process = subprocess.Popen([sys.executable, GAME_FILE],
-                                        creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
-    else:
-        game_process = subprocess.Popen([sys.executable, GAME_FILE], start_new_session=True)
+    game_process = subprocess.Popen([sys.executable, GAME_FILE])
+    status_label.config(text="Spiel gestartet! Launcher läuft weiter ✅")
 
-    status_label.config(text="Spiel gestartet! Launcher überwacht das Spiel ✅")
-
-    if checker_thread is None:
-        checker_thread = threading.Thread(target=monitor_game, daemon=True)
-        checker_thread.start()
-
-# ------------------ Crash-Monitor ------------------
-def monitor_game():
-    global game_process
-    while True:
-        if game_process:
-            ret = game_process.poll()
-            if ret is not None:
-                root.after(0, lambda: crashed_prompt())
-                game_process = None
-        time.sleep(1)
-
-def crashed_prompt():
-    response = messagebox.askyesno(
-        "Spiel beendet",
-        "Ist das Spiel abgestürzt?\n\nJa → Neustart\nNein → Launcher schließen"
-    )
-    if response:
-        start_game()
-    else:
-        root.destroy()
-        sys.exit()
-
-# ------------------ Zwangsbeenden ------------------
+# ---------------- Spiel zwangsweise beenden ----------------
 def force_quit_game():
     global game_process
     if game_process is None:
         messagebox.showwarning("Info", "Kein Spiel läuft gerade.")
         return
-
     try:
-        if sys.platform == "win32":
-            subprocess.call(f"taskkill /F /PID {game_process.pid}", shell=True)
-        else:
-            game_process.terminate()
-        status_label.config(text="Spiel wurde zwangsweise beendet ❌")
+        game_process.terminate()
+        status_label.config(text="Spiel zwangsweise beendet ❌")
         game_process = None
     except Exception as e:
         messagebox.showerror("Fehler", f"Konnte Spiel nicht beenden: {e}")
 
-# ------------------ Update-Funktion ------------------
+# ---------------- Update für Spiel ----------------
 def update_game():
-    online = get_online_version()
-    if online is None:
-        messagebox.showwarning(
-            "Offline",
-            "Kein Internet.\nOffline spielen möglich,\naber evtl. nicht neueste Version :("
-        )
+    online_version = get_online_version(GAME_VERSION_URL)
+    local_version = get_local_version()
+    if online_version is None:
+        messagebox.showerror("Fehler", "Konnte Online-Version nicht abrufen.")
+        return
+    if online_version == local_version:
+        messagebox.showinfo("Info", "Spiel ist auf dem neuesten Stand ✅")
         return
 
-    local = get_local_version()
-    if local == online:
-        messagebox.showinfo("Info", "Spiel ist bereits aktuell ✅")
+    # Update bestätigen
+    if not messagebox.askyesno("Update verfügbar", f"Neue Version {online_version} verfügbar. Update jetzt?"):
         return
 
-    if messagebox.askyesno(
-        "Update verfügbar",
-        f"Neue Version verfügbar:\n{local} → {online}\n\nUpdate installieren?"
-    ):
-        download_game()
-        save_local_version(online)
-        messagebox.showinfo("Fertig", "Update erfolgreich installiert ✅")
-        update_status()
-
-# ------------------ Statusanzeige ------------------
-def update_status():
-    online = get_online_version()
-    local = get_local_version()
-    if online is None:
-        status_label.config(
-            text=f"Status: Offline spielen\nVersion: {local} (evtl. nicht neueste)"
+    try:
+        urllib.request.urlretrieve(
+            "https://raw.githubusercontent.com/FoxyYT33344/The_Fox/main/The_Fox.py",
+            GAME_FILE
         )
-    else:
-        status_label.config(
-            text=f"Status: Online\nVersion: {local} (Server: {online})"
-        )
+        urllib.request.urlretrieve(GAME_VERSION_URL, LOCAL_VERSION_FILE)
+        messagebox.showinfo("Update", "Spiel erfolgreich aktualisiert! ✅")
+    except Exception as e:
+        messagebox.showerror("Fehler", f"Update fehlgeschlagen: {e}")
 
-# ------------------ Launcher schließen ------------------
-def on_close():
-    if messagebox.askyesno("FuchsWelt verlassen", "Wollen Sie wirklich die FuchsWelt verlassen :((("):
-        # Optional: Spielprozess schließen, wenn gewünscht
-        if game_process:
-            try:
-                if sys.platform == "win32":
-                    subprocess.call(f"taskkill /F /PID {game_process.pid}", shell=True)
-                else:
-                    game_process.terminate()
-            except:
-                pass
-        root.destroy()
-        sys.exit()
+# ---------------- Update für Launcher ----------------
+def update_launcher():
+    online_version = get_online_version(GAME_VERSION_URL)
+    local_version = get_local_version()
+    if online_version is None:
+        messagebox.showerror("Fehler", "Konnte Online-Version nicht abrufen.")
+        return
+    if online_version == local_version:
+        messagebox.showinfo("Info", "Launcher ist auf dem neuesten Stand ✅")
+        return
 
-# ------------------ GUI ------------------
+    if not messagebox.askyesno("Launcher Update", f"Neue Version verfügbar. Update Launcher jetzt?"):
+        return
+
+    try:
+        urllib.request.urlretrieve(LAUNCHER_RAW_URL, os.path.join(FOLDER, "The_Fox_launcher.py"))
+        messagebox.showinfo("Update", "Launcher erfolgreich aktualisiert! Bitte neu starten ✅")
+    except Exception as e:
+        messagebox.showerror("Fehler", f"Launcher Update fehlgeschlagen: {e}")
+
+# ---------------- GUI ----------------
 root = tk.Tk()
-root.title("The Fox Launcher 🦊")
-root.geometry("400x350")
+root.title("🦊 The Fox Launcher")
+root.geometry("450x250")
 root.resizable(False, False)
-root.protocol("WM_DELETE_WINDOW", on_close)
 
 title = tk.Label(root, text="🦊 The Fox Launcher", font=("Arial", 16, "bold"))
 title.pack(pady=10)
 
-status_label = tk.Label(root, text="", font=("Arial", 10))
+status_label = tk.Label(root, text="Launcher bereit", font=("Arial", 10))
 status_label.pack(pady=5)
 
-play_btn = tk.Button(root, text="▶ Spielen", width=30, command=start_game)
+play_btn = tk.Button(root, text="▶ Spielen", width=35, command=start_game)
 play_btn.pack(pady=5)
 
-update_btn = tk.Button(root, text="🔄 Update prüfen", width=30, command=update_game)
-update_btn.pack(pady=5)
-
-offline_btn = tk.Button(root, text="📴 Offline spielen", width=30, command=start_game)
-offline_btn.pack(pady=5)
-
-force_quit_btn = tk.Button(root, text="⛔ Spiel zwangsweise beenden", width=30, command=force_quit_game)
+force_quit_btn = tk.Button(root, text="⛔ Spiel zwangsweise beenden", width=35, command=force_quit_game)
 force_quit_btn.pack(pady=5)
 
-update_status()
+update_game_btn = tk.Button(root, text="⬆ Spiel aktualisieren", width=35, command=update_game)
+update_game_btn.pack(pady=5)
+
+update_launcher_btn = tk.Button(root, text="⬆ Launcher aktualisieren", width=35, command=update_launcher)
+update_launcher_btn.pack(pady=5)
+
 root.mainloop()
