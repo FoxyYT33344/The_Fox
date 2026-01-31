@@ -1,3 +1,4 @@
+
 import tkinter as tk
 from tkinter import messagebox
 import urllib.request
@@ -10,7 +11,7 @@ import os
 # =====================
 LAUNCHER_VERSION = "1.2.1"
 
-# Achte darauf, dass dieser Pfad exakt stimmt (Raw-Link nutzen!)
+# Diese URLs wurden korrigiert, damit sie auf die RAW-Dateien zugreifen
 VERSION_URL = "https://raw.githubusercontent.com/FoxyYT33344/The_Fox/main/version.launcher.py"
 GAME_URL = "https://raw.githubusercontent.com/FoxyYT33344/The_Fox/main/The_Fox.py"
 UPDATER_URL = "https://raw.githubusercontent.com/FoxyYT33344/The_Fox/main/The_Fox_Launcher_update.py"
@@ -30,6 +31,7 @@ def get_online_launcher_version():
             # Wir suchen nach einer Zeile wie: VERSION = "1.2.2"
             for line in content.splitlines():
                 if "VERSION" in line:
+                    # Entfernt Anführungszeichen und Leerzeichen
                     return line.split("=")[1].strip().replace('"', "").replace("'", "")
     except Exception as e:
         print(f"Versions-Check Fehler: {e}")
@@ -93,17 +95,22 @@ def install_game():
         messagebox.showerror("Fehler", f"Installation fehlgeschlagen:\n{e}")
 
 def uninstall_game():
-    """Deinstalliert das Spiel"""
+    """Deinstalliert das Spiel mit doppelter Bestätigung und persönlichen Nachrichten"""
     if not os.path.exists(GAME_FILE):
         return
 
-    if messagebox.askyesno("Löschen", "Möchtest du das Spiel wirklich löschen?"):
-        try:
-            os.remove(GAME_FILE)
-            messagebox.showinfo("Erfolg", "Spiel wurde gelöscht!")
-            refresh_button()
-        except Exception as e:
-            messagebox.showerror("Fehler", f"Löschen fehlgeschlagen:\n{e}")
+    # Erste Bestätigung
+    if messagebox.askyesno("Bye?", "Möchtest du das Spiel wirklich deinstallieren?"):
+        # Zweite Bestätigung
+        if messagebox.askyesno("Bist du sicher? Dass du mich verlässt?", 
+                               "Das Spiel wird von deinem Gerät gelöscht, bis du es wieder installierst. Willst du wirklich fortfahren und mich verlassen?"):
+            try:
+                os.remove(GAME_FILE)
+                # Abschlussnachricht
+                messagebox.showinfo("Schaddde😭😭", "Schade, dass du gehst! Dass du mich verlässt! Das Spiel wurde deinstalliert.")
+                refresh_button()
+            except Exception as e:
+                messagebox.showerror("Fehler", f"Löschen fehlgeschlagen:\n{e}")
 
 def start_game():
     """Startet das Spiel oder installiert es"""
