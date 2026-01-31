@@ -5,109 +5,40 @@ import os
 
 SAVE_FILE = "savegame.json"
 
-# ---------------- Fenster ----------------
-window.icon = 'The_Fox.png'
-window.title = 'The Fox 🦊'
-
 app = Ursina()
+window.title = "🦊 The Fox"
+window.borderless = False
+window.fullscreen = False
 
-# ---------------- HAUPTMENÜ ----------------
-menu_ui = Entity(enabled=True)
-menu_background = Entity(parent=menu_ui, model='quad', scale=(16,9), color=color.azure)
-title = Text(text="🦊 The Fox", parent=menu_ui, scale=3, position=(0,0.3,0), origin=(0,0))
-play_button = Button(text="▶ Spiel starten", scale=(0.3,0.1), position=(0,0,0), color=color.green, parent=menu_ui)
-quit_button = Button(text="❌ Beenden", scale=(0.3,0.1), position=(0,-0.15,0), color=color.red, parent=menu_ui)
+# ======== APP ICON ========
+if os.path.exists("The_Fox.png"):
+    app.icon = "The_Fox.png"
 
-# ---------------- PAUSE MENÜ ----------------
-pause_ui = Entity(enabled=False)
+# ======================================
+# HAUPTMENÜ
+# ======================================
+menu_ui = Entity()
+Entity(parent=menu_ui, model='quad', scale=(16,9), color=color.azure)
+Text(text="🦊 The Fox", parent=menu_ui, scale=3, position=(0,0.3), origin=(0,0))
 
-pause_bg = Entity(
-    parent=pause_ui,
-    model='quad',
-    scale=(0.6, 0.6),
-    color=color.rgba(0, 0, 0, 200)
-)
-
-pause_title = Text(
-    text="PAUSE",
-    parent=pause_ui,
-    scale=2,
-    position=(0, 0.2, 0),
-    origin=(0,0)
-)
-
-btn_resume = Button(
-    text="▶ Zurück zum Spiel",
-    parent=pause_ui,
-    scale=(0.45, 0.1),
-    position=(0, 0.05, 0),
-    color=color.green
-)
-
-btn_save = Button(
-    text="💾 Speichern",
-    parent=pause_ui,
-    scale=(0.45, 0.1),
-    position=(0, -0.05, 0),
-    color=color.azure
-)
-
-btn_menu = Button(
-    text="🏠 Zum Hauptmenü",
-    parent=pause_ui,
-    scale=(0.45, 0.1),
-    position=(0, -0.15, 0),
-    color=color.orange
-)
-
-btn_exit = Button(
-    text="❌ Beenden & Speichern",
-    parent=pause_ui,
-    scale=(0.45, 0.1),
-    position=(0, -0.25, 0),
-    color=color.red
-)
-
-# ---------------- SPIEL ----------------
-player = None
-hotbar = []
-inventory_ui = None
-inventory_open = False
-selected_slot = 0
-
-items = ["Holz", "Stein", "Schaufel", "Schwert", "Fackel", "Pfeil", "Bogen", "Essen", "Trank"]
-
-# ============ SPEICHERN & LADEN ============
-def save_game():
-    if not player:
-        return
-
-    data = {
-        "player_position": [player.x, player.y, player.z],
-        "selected_slot": selected_slot
-    }
-
-    with open(SAVE_FILE, "w") as f:
-        json.dump(data, f)
-
-    print("✅ Spiel gespeichert!")
-
-def load_game():
-    if os.path.exists(SAVE_FILE) and player:
-        with open(SAVE_FILE, "r") as f:
-            data = json.load(f)
-            player.position = Vec3(*data["player_position"])
-            global selected_slot
-            selected_slot = data.get("selected_slot", 0)
-            highlight_slot(selected_slot)
-        print("📂 Spielstand geladen!")
-
-# ============ SPIEL STARTEN ============
 def start_game():
-    global player, hotbar, inventory_ui
+    menu_ui.disable()
+    start_world()
 
-    menu_ui.enabled = False   # Hauptmenü aus
-    pause_ui.enabled = False  # Pause-Menü aus
+def quit_game():
+    application.quit()
+
+Button(text="▶ Spiel starten", scale=(0.3,0.1), position=(0,0), color=color.green, parent=menu_ui, on_click=start_game)
+Button(text="❌ Beenden", scale=(0.3,0.1), position=(0,-0.15), color=color.red, parent=menu_ui, on_click=quit_game)
+
+# ======================================
+# SPIELWELT
+# ======================================
+player = None
+ground = None
+
+def start_world():
+    global player, ground
 
     player = FirstPersonController()
     player.gravity = 0.5
@@ -121,94 +52,121 @@ def start_game():
         color=color.dark_gray
     )
 
-    box = Entity(
-        model='cube',
-        color=color.orange,
-        scale=2,
-        position=(3,1,3),
-        collider='box'
-    )
-
-    # ----- HOTBAR -----
-    hotbar.clear()
-    for i in range(9):
-        slot_bg = Entity(
-            model='quad',
-            scale=(0.08,0.08),
-            color=color.gray,
-            origin=(0,0),
-            parent=camera.ui,
-            x=-0.36 + i*0.08,
-            y=-0.42
-        )
-        slot_text = Text(
-            text=items[i],
-            parent=slot_bg,
-            scale=0.5,
-            y=-0.02
-        )
-        hotbar.append((slot_bg, slot_text))
-
-    highlight_slot(selected_slot)
-
-    inventory_ui = Entity(parent=camera.ui, enabled=False)
-    Entity(parent=inventory_ui, model='quad', scale=(0.5,0.5), color=color.rgba(50,50,50,200))
+    # Beispiel-Objekte
+    Entity(model='cube', color=color.orange, scale=2, position=(3,1,3), collider='box')
+    Entity(model='cube', color=color.lime, scale=2, position=(-3,1,-3), collider='box')
 
     load_game()
 
-# ============ HOTBAR HIGHLIGHT ============
-def highlight_slot(slot_index):
-    for i, (bg, _) in enumerate(hotbar):
-        bg.color = color.yellow if i == slot_index else color.gray
+    create_hotbar()
+    create_inventory()
+    create_pause_menu()
 
-# ============ INPUT ============
+# ======================================
+# HOTBAR (9 SLOTS)
+# ======================================
+hotbar = []
+selected_slot = 0
+
+def create_hotbar():
+    for i in range(9):
+        slot = Button(
+            text=str(i+1),
+            scale=(0.08, 0.08),
+            position=(-0.4 + i*0.1, -0.45),
+            color=color.gray
+        )
+        hotbar.append(slot)
+
+def update_hotbar():
+    for i, slot in enumerate(hotbar):
+        slot.color = color.gold if i == selected_slot else color.gray
+
 def input(key):
-    global selected_slot, inventory_open
+    global selected_slot
 
-    # Hotbar 1-9
-    if key.isdigit() and int(key) in range(1,10):
-        selected_slot = int(key)-1
-        highlight_slot(selected_slot)
+    if key in "123456789":
+        selected_slot = int(key) - 1
+        update_hotbar()
 
-    # Inventar
-    elif key == 'i':
-        inventory_open = not inventory_open
-        if inventory_ui:
-            inventory_ui.enabled = inventory_open
+    if key == "e":
+        toggle_inventory()
 
-    # PAUSE MENÜ MIT ESC
-    elif key == 'escape':
-        if pause_ui.enabled:
-            pause_ui.enabled = False
-            player.enable()
-            mouse.locked = True
-        else:
-            pause_ui.enabled = True
-            player.disable()
-            mouse.locked = False  # ⭐ WICHTIG: Maus frei!
+    if key == "escape":
+        toggle_pause()
 
-# ============ BUTTONS ============
-btn_resume.on_click = lambda: (
-    setattr(pause_ui, "enabled", False),
-    player.enable(),
-    setattr(mouse, "locked", True)
-)
+# ======================================
+# INVENTAR (E)
+# ======================================
+inventory_ui = Entity(enabled=False)
+inventory_bg = Entity(parent=inventory_ui, model='quad', scale=(1.2,0.8), color=color.rgba(0,0,0,180))
 
-btn_save.on_click = save_game
+def create_inventory():
+    Text("Inventar", parent=inventory_ui, position=(0,0.35), scale=2)
 
-btn_menu.on_click = lambda: (
-    save_game(),
-    setattr(pause_ui, "enabled", False),
-    setattr(menu_ui, "enabled", True),
-    destroy(player)
-)
+    y = 0.2
+    for i in range(12):
+        Button(
+            text=f"Slot {i+1}",
+            parent=inventory_ui,
+            scale=(0.18,0.08),
+            position=(-0.45 + (i%4)*0.3, y - (i//4)*0.15),
+            color=color.dark_gray
+        )
 
-btn_exit.on_click = lambda: (
-    save_game(),
-    application.quit()
-)
+def toggle_inventory():
+    inventory_ui.enabled = not inventory_ui.enabled
+    mouse.locked = not inventory_ui.enabled
+    mouse.visible = inventory_ui.enabled
 
-play_button.on_click = start_game
-quit_button.on_click = application.quit
+# ======================================
+# PAUSE MENÜ (ESC)
+# ======================================
+pause_ui = Entity(enabled=False)
 
+Entity(parent=pause_ui, model='quad', scale=(16,9), color=color.rgba(0,0,0,120))
+Text("PAUSE", parent=pause_ui, scale=3, position=(0,0.25))
+
+def toggle_pause():
+    pause_ui.enabled = not pause_ui.enabled
+    mouse.locked = not pause_ui.enabled
+    mouse.visible = pause_ui.enabled
+
+def resume_game():
+    pause_ui.disable()
+    mouse.locked = True
+    mouse.visible = False
+
+def save_game():
+    if player:
+        data = {
+            "x": player.x,
+            "y": player.y,
+            "z": player.z
+        }
+        with open(SAVE_FILE, "w") as f:
+            json.dump(data, f)
+        print("Spiel gespeichert!")
+
+def back_to_menu():
+    application.restart()
+
+Button(text="▶ Weiter", parent=pause_ui, scale=(0.25,0.1), position=(0,0.05), color=color.green, on_click=resume_game)
+Button(text="💾 Speichern", parent=pause_ui, scale=(0.25,0.1), position=(0,-0.05), color=color.azure, on_click=save_game)
+Button(text="🏠 Hauptmenü", parent=pause_ui, scale=(0.25,0.1), position=(0,-0.15), color=color.orange, on_click=back_to_menu)
+Button(text="❌ Beenden", parent=pause_ui, scale=(0.25,0.1), position=(0,-0.25), color=color.red, on_click=application.quit)
+
+# ======================================
+# SPEICHERN & LADEN
+# ======================================
+def load_game():
+    if os.path.exists(SAVE_FILE) and player:
+        with open(SAVE_FILE, "r") as f:
+            data = json.load(f)
+            player.position = Vec3(data["x"], data["y"], data["z"])
+            print("Spielstand geladen!")
+
+# ======================================
+# START
+# ======================================
 app.run()
